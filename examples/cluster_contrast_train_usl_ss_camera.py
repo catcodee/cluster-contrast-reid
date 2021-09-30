@@ -163,7 +163,7 @@ def main_worker(args):
 
     # Optimizer
     params = [{"params": [value]} for _, value in model.module.net.named_parameters() if value.requires_grad]
-    mean_params_1 = [{"params": [value], "lr": args.lr*0.4} for _, value in model.module.net.named_parameters() if value.requires_grad]
+    mean_params_1 = [{"params": [value], "lr": args.lr*args.lr_factor} for _, value in model.module.net.named_parameters() if value.requires_grad]
     mean_params_2 = [{"params": [value], "lr": args.lr} for _, value in model.module.embedding.named_parameters() if value.requires_grad]
     params_s = mean_params_1 + mean_params_2
     optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)    
@@ -336,4 +336,5 @@ if __name__ == '__main__':
                         default=osp.join(working_dir, 'logs'))
     parser.add_argument('--pooling-type', type=str, default='gem')
     parser.add_argument('--use-hard', action="store_true")
+    parser.add_argument('--lr-factor', type=float, default=1.0)
     main()
