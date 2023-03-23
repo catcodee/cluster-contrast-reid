@@ -53,6 +53,8 @@ class RandomMultipleGallerySampler(Sampler):
         self.num_instances = num_instances
 
         for index, (_, pid, cam) in enumerate(data_source):
+            if isinstance(pid, torch.Tensor):
+                pid = int(pid[0])
             if pid < 0:
                 continue
             self.index_pid[index] = pid

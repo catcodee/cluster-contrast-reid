@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=3 python examples/test_pcb.py -d market1501 --resume logs/pcb_2_19/checkpoint.pth.tar --beta 1.0

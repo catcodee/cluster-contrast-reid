@@ -1,0 +1,5 @@
+ClusterContrast.egg-info
+*.pyc
+logs
+examples/data
+examples/logs

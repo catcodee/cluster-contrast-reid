@@ -1,0 +1,2 @@
+# CUDA_VISIBLE_DEVICES=3 python -m debugpy --listen 5678 --wait-for-client examples/cluster_contrast_train_usl_pcb.py -b 256 -a pcb -d market1501 --iters 200 --momentum 0.1 --eps 0.6 --num-instances 16 --logs-dir logs/debug
+CUDA_VISIBLE_DEVICES=3 python -m debugpy --listen 5678 --wait-for-client examples/cluster_contrast_train_usl_pcb_softlabel.py -b 256 -a pcb -d market1501 --iters 200 --momentum 0.1 --eps 0.6 --num-instances 16 --logs-dir logs/debug --soft-epoch 0 

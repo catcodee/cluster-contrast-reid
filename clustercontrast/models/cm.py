@@ -98,3 +98,34 @@ class ClusterMemory(nn.Module, ABC):
         outputs /= self.temp
         loss = F.cross_entropy(outputs, targets)
         return loss
+
+class ClusterMemoryWithSoftLabel(nn.Module, ABC):
+    def __init__(self, num_features, num_samples, temp=0.05, momentum=0.2, use_hard=False):
+        super(ClusterMemoryWithSoftLabel, self).__init__()
+        self.num_features = num_features
+        self.num_samples = num_samples
+
+        self.momentum = momentum
+        self.temp = temp
+        self.use_hard = use_hard
+
+        self.register_buffer('features', torch.zeros(num_samples, num_features))
+
+    def forward(self, inputs=None, probs=None, hard_targets=0.0, soft_targets=0.0, out_probs=False):
+        if probs == None:
+            probs = self._compute_probs(inputs, hard_targets)
+            if out_probs:
+                return probs
+        loss = -(soft_targets*torch.log(probs)).sum(dim=1).mean()
+        return loss
+    
+    def _compute_probs(self, inputs, hard_targets):
+        inputs = F.normalize(inputs, dim=1).cuda()
+        if self.use_hard:
+            outputs = cm_hard(inputs, hard_targets, self.features, self.momentum)
+        else:
+            outputs = cm(inputs, hard_targets, self.features, self.momentum)
+
+        outputs /= self.temp
+        probs = F.softmax(outputs, dim=1)
+        return probs

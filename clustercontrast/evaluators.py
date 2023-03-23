@@ -11,12 +11,27 @@ from .evaluation_metrics import cmc, mean_ap
 from .utils.meters import AverageMeter
 from .utils.rerank import re_ranking
 from .utils import to_torch
+from .models.resnet import PCB
 
 
 def extract_cnn_feature(model, inputs):
     inputs = to_torch(inputs).cuda()
     outputs = model(inputs)
-    outputs = outputs.data.cpu()
+    if isinstance(outputs, torch.Tensor):
+        outputs = outputs.data.cpu()
+    elif isinstance(outputs, tuple):
+        b = outputs[0].size(0)
+        reshape_outputs_1 = []
+        for i in range(len(outputs)):
+            reshape_outputs_1.append(outputs[i].data.cpu())
+        reshape_outputs_2 = []
+        for i in range(b):
+            out = []
+            for j in range(len(reshape_outputs_1)):
+                out.append(reshape_outputs_1[j][i])
+            reshape_outputs_2.append(out)
+        outputs = reshape_outputs_2
+
     return outputs
 
 
@@ -111,9 +126,20 @@ class Evaluator(object):
         super(Evaluator, self).__init__()
         self.model = model
 
-    def evaluate(self, data_loader, query, gallery, cmc_flag=False, rerank=False):
+    def evaluate(self, data_loader, query, gallery, cmc_flag=False, rerank=False, num_stripe=-1, beta=0.0):
         features, _ = extract_features(self.model, data_loader)
-        distmat, query_features, gallery_features = pairwise_distance(features, query, gallery)
+        if num_stripe > 1:
+            global_features = {k:v[0] for k,v in features.items()}
+            local_features= {k:v[1] for k,v in features.items()}
+            global_distmat, query_features, gallery_features = pairwise_distance(global_features, query, gallery)
+            if beta > 0:
+                local_distmat, query_features, gallery_features = pairwise_distance(local_features, query, gallery)
+            else:
+                local_distmat = 0.0
+            distmat = (1-beta)*global_distmat + beta*local_distmat*(1.0/num_stripe)
+        else:
+            distmat, query_features, gallery_features = pairwise_distance(features, query, gallery)
+
         results = evaluate_all(query_features, gallery_features, distmat, query=query, gallery=gallery, cmc_flag=cmc_flag)
 
         if (not rerank):
