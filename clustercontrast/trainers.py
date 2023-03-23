@@ -1,11 +1,6 @@
 from __future__ import print_function, absolute_import
 import time
-<<<<<<< HEAD
 import torch
-=======
-
-from numpy.core.fromnumeric import mean
->>>>>>> f6359990a4326375f23c3fd654df3fc6dcc9c579
 from .utils.meters import AverageMeter
 
 def one_hot(x, class_count):
@@ -375,7 +370,6 @@ class SSCameraClusterContrastTrainer(object):
             loss.backward()
             optimizer.step()
 
-<<<<<<< HEAD
     def _compute_loss_with_hard(self, global_feat, local_feat, labels):
         global_labels = labels[:, 0]
         one_hot_global_labels = one_hot(global_labels, self.global_memory.num_samples).cuda()
@@ -452,40 +446,3 @@ class SSCameraClusterContrastTrainer(object):
         return loss
 
 
-=======
-            losses.update(loss.item())
-
-            inputs = data_loader_s.next()
-            inputs = inputs[0]
-            inputs = [data.cuda() for data in inputs]
-            feat, mean_feat = self.encoder(inputs, mode=1)
-            loss_s = self.dis_loss(feat, mean_feat)
-            
-            optimzier_s.zero_grad()
-            loss_s.backward()
-            optimzier_s.step()
-
-            losses_s.update(loss_s.item())
-            # print log
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if (i + 1) % print_freq == 0:
-                print('Epoch: [{}][{}/{}]\t'
-                      'Time {:.3f} ({:.3f})\t'
-                      'Data {:.3f} ({:.3f})\t'
-                      'Loss {:.3f} ({:.3f})\t'
-                      'Loss_s {:.3f} ({:.3f})'
-                      .format(epoch, i + 1, len(data_loader),
-                              batch_time.val, batch_time.avg,
-                              data_time.val, data_time.avg,
-                              losses.val, losses.avg,
-                              losses_s.val, losses_s.avg))
-
-    def _parse_data(self, inputs):
-        imgs, _, pids, cams, indexes = inputs
-        return imgs.cuda(), pids.cuda(), cams.cuda(), indexes.cuda()
-
-    def _forward(self, inputs):
-        return self.encoder(inputs)
->>>>>>> f6359990a4326375f23c3fd654df3fc6dcc9c579

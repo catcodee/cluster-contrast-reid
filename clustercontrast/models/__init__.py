@@ -13,12 +13,7 @@ __factory = {
     'resnet152': resnet152,
     'resnet_ibn50a': resnet_ibn50a,
     'resnet_ibn101a': resnet_ibn101a,
-<<<<<<< HEAD
     'pcb': pcb,
-=======
-    'mean_net': TeacherStudentNetwork,
-    'self_loss': SelfDisLoss
->>>>>>> f6359990a4326375f23c3fd654df3fc6dcc9c579
 }
 
 
