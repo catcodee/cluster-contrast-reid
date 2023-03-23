@@ -1,5 +1,22 @@
+<<<<<<< HEAD
 ClusterContrast.egg-info
 *.pyc
 logs
 examples/data
 examples/logs
+=======
+logs
+*.pyc
+examples/logs
+ClusterContrast.egg-info
+*cpython-36.pyc
+examples/data
+examples/pretrained
+.vscode/
+.vscode/*.json
+*.json
+.*
+!/.gitignore
+.vscode/settings.json
+.vscode/settings.json
+>>>>>>> f6359990a4326375f23c3fd654df3fc6dcc9c579
