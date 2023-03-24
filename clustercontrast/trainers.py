@@ -143,14 +143,14 @@ class ClusterContrastTrainerPCBSoft(object):
         self.use_hard_label = use_hard_label
         self.use_local_label = use_local_label
         self.label_transfer_matrix_list = None
-        self.label_transfer_matrix_T_list = []
+        # self.label_transfer_matrix_T_list = []
 
-        for i in range(len(self.label_transfer_matrix_list)):
-            tf_mat = self.label_transfer_matrix_list[i]
-            tf_mat_norm = tf_mat / tf_mat.sum(dim=1, keep_dim=True)
-            tf_mat_T_norm = tf_mat.T / tf_mat.T.sum(dim=1, keep_dim=True)
-            self.label_transfer_matrix_list[i] = tf_mat_norm
-            self.label_transfer_matrix_T_list.append(tf_mat_T_norm)
+        # # for i in range(len(self.label_transfer_matrix_list)):
+        # #     tf_mat = self.label_transfer_matrix_list[i]
+        # #     tf_mat_norm = tf_mat / tf_mat.sum(dim=1, keep_dim=True)
+        # #     tf_mat_T_norm = tf_mat.T / tf_mat.T.sum(dim=1, keep_dim=True)
+        # #     self.label_transfer_matrix_list[i] = tf_mat_norm
+        # #     self.label_transfer_matrix_T_list.append(tf_mat_T_norm)
 
     def train(self, epoch, data_loader, optimizer, print_freq=10, train_iters=400):
         self.encoder.train()
@@ -205,7 +205,82 @@ class ClusterContrastTrainerPCBSoft(object):
 
     def _forward(self, inputs):
         return self.encoder(inputs)
-    
+
+    def _compute_loss_with_hard(self, global_feat, local_feat, labels):
+        global_labels = labels[:, 0]
+        one_hot_global_labels = one_hot(global_labels, self.global_memory.num_samples).cuda()
+
+        local_labels_list = []
+        one_hot_local_labels_list = []
+        soft_global_labels = torch.zeros(global_feat.size(0), self.global_memory.num_samples).cuda()
+        for i in range(self.num_stripes):
+            local_labels = labels[:, 1+i]
+            local_labels_list.append(local_labels)
+            one_hot_local_labels = one_hot(local_labels, self.local_memories[i].num_samples)
+            one_hot_local_labels_list.append(one_hot_local_labels)
+            soft_global_labels += torch.einsum("mn,bm->bn", [self.label_transfer_matrix_list[i], one_hot_local_labels])
+        soft_global_labels = soft_global_labels / self.num_stripes
+        soft_global_labels = soft_global_labels / soft_global_labels.sum(dim=1, keepdim=True)
+        final_soft_global_labels = self.theta*one_hot_global_labels + (1-self.theta)*soft_global_labels
+        global_loss = self.global_memory(global_feat, hard_targets=global_labels, soft_targets=final_soft_global_labels)
+
+        local_feats = torch.split(local_feat, self.encoder.module.num_stripe_features, dim=1)
+        local_loss = 0.0
+        for i in range(self.num_stripes):
+            soft_local_labels = torch.einsum("mn,bn->bm", [self.label_transfer_matrix_list[i], one_hot_global_labels])
+            soft_local_labels = soft_local_labels / soft_local_labels.sum(dim=1, keepdim=True)
+            one_hot_local_labels = one_hot_local_labels_list[i]
+            if self.use_local_label:
+                final_soft_local_labels = self.theta*soft_local_labels + (1-self.theta)*one_hot_local_labels
+            else:
+                final_soft_local_labels = self.theta*one_hot_local_labels + (1-self.theta)*soft_local_labels
+            local_loss += self.local_memories[i](
+                                local_feats[i], hard_targets=local_labels_list[i], soft_targets=final_soft_local_labels)
+
+        loss = global_loss + self.alpha*local_loss*(1.0/self.num_stripes)
+
+        return loss
+
+    def _compute_loss_with_soft(self, global_feat, local_feat, labels):
+        global_probs = self.global_memory(global_feat, hard_targets=labels[:, 0], out_probs=True)
+        local_feats = torch.split(local_feat, self.encoder.module.num_stripe_features, dim=1)
+        local_probs_list = []
+        local_labels_list = []
+        for i in range(self.num_stripes):
+            local_labels = labels[:, 1+i]
+            local_labels_list.append(local_labels)
+            local_probs_list.append(self.local_memories[i](local_feats[i], hard_targets=local_labels, out_probs=True))
+
+        global_labels = labels[:, 0]
+        one_hot_global_labels = one_hot(global_labels, self.global_memory.num_samples).cuda()
+
+        one_hot_local_labels_list = []
+        soft_global_labels = torch.zeros(global_feat.size(0), self.global_memory.num_samples).cuda()
+        for i in range(self.num_stripes):
+            one_hot_local_labels = one_hot(local_labels_list[i], self.local_memories[i].num_samples)
+            one_hot_local_labels_list.append(one_hot_local_labels)
+            soft_global_labels += torch.einsum("mn,bm->bn", [self.label_transfer_matrix_list[i], local_probs_list[i].detach()])
+        soft_global_labels = soft_global_labels / self.num_stripes
+        soft_global_labels = soft_global_labels / soft_global_labels.sum(dim=1, keepdim=True)
+        final_soft_global_labels = self.theta*one_hot_global_labels + (1-self.theta)*soft_global_labels
+        global_loss = self.global_memory(probs=global_probs, hard_targets=global_labels, soft_targets=final_soft_global_labels)
+
+        local_loss = 0.0
+        for i in range(self.num_stripes):
+            soft_local_labels = torch.einsum("mn,bn->bm", [self.label_transfer_matrix_list[i], global_probs.detach()])
+            soft_local_labels = soft_local_labels / soft_local_labels.sum(dim=1, keepdim=True)
+            one_hot_local_labels = one_hot_local_labels_list[i]
+            if self.use_local_label:
+                final_soft_local_labels = self.theta*one_hot_local_labels + (1-self.theta)*soft_local_labels
+            else:
+                final_soft_local_labels = self.theta*soft_local_labels + (1-self.theta)*one_hot_local_labels
+            local_loss += self.local_memories[i](
+                                probs=local_probs_list[i], hard_targets=local_labels_list[i], soft_targets=final_soft_local_labels)
+
+        loss = global_loss + self.alpha*local_loss*(1.0/self.num_stripes)
+
+        return loss
+
 class CameraClusterContrastTrainer(object):
     def __init__(self, encoder, memory=None):
         super(CameraClusterContrastTrainer, self).__init__()
