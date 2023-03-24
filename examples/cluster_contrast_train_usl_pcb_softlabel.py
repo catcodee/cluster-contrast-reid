@@ -168,7 +168,7 @@ def main_worker(args):
             global_features = torch.cat([features[f][0].unsqueeze(0) for f, _, _ in sorted(dataset.train)], 0)
             local_features = torch.cat([features[f][1].unsqueeze(0) for f, _, _ in sorted(dataset.train)], 0)
             local_features_list = torch.split(local_features, args.stripe_features, dim=1)
-            if ((epoch+1) > args.soft_epoch and args.use_local_label) or (args.use_local_dist and (epoch+1) > args.soft_epoch):
+            if (((epoch+1) > args.soft_epoch) and args.use_local_label) or (args.use_local_dist and ((epoch+1) > args.soft_epoch)):
                 local_rerank_dist_list = []
                 for i in range(len(local_features_list)):
                     local_rerank_dist_list.append(compute_jaccard_distance(
@@ -176,12 +176,13 @@ def main_worker(args):
                     ))
             global_rerank_dist = compute_jaccard_distance(global_features, k1=args.k1, k2=args.k2)
 
-            if args.use_local_dist and (epoch+1) > args.soft_epoch:
+            if (args.use_local_dist and (epoch+1) > args.soft_epoch) or (args.use_local_label and (epoch+1) > args.soft_epoch):
                 local_rerank_dist = np.zeros_like(global_rerank_dist)
                 for i in range(args.num_stripes):
                     local_rerank_dist += local_rerank_dist_list[i]
                 local_rerank_dist = local_rerank_dist / num_stripes
-                global_rerank_dist = (1-args.beta)*global_rerank_dist + args.beta*local_rerank_dist
+                if args.use_local_dist:
+                    global_rerank_dist = (1-args.beta)*global_rerank_dist + args.beta*local_rerank_dist
 
             if epoch == 0:
                 # DBSCAN cluster
@@ -193,7 +194,7 @@ def main_worker(args):
             global_pseudo_labels = cluster.fit_predict(global_rerank_dist)
             global_num_cluster = len(set(global_pseudo_labels)) - (1 if -1 in global_pseudo_labels else 0)
 
-            if (epoch+1) > args.soft_epoch and args.use_local_label:
+            if ((epoch+1) > args.soft_epoch) and args.use_local_label:
                 local_pseudo_labels_list = []
                 local_num_cluster_list = []
                 for i in range(num_stripes):
